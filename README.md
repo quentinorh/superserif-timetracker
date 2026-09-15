@@ -1,9 +1,8 @@
-# Lineup Timetracker — LilyGo T5 4.7" e-paper
+# Timetracker — LilyGo T5 4.7" e-paper
 
 ![Lineup Timetracker dans son boîtier](assets/packshot.jpg)
 
-Suivi du temps de l'équipe sur un écran e-paper 960×540 tactile (ESP32-S3),
-synchronisé avec l'application web Lineup via son API REST.
+Suivi du temps de l'équipe SuperSerif sur un écran e-paper 960×540 tactile (ESP32-S3), synchronisé avec l'application web Lineup via son API REST.
 
 ## Ce que fait l'écran
 
