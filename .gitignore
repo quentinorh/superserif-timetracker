@@ -1,0 +1,26 @@
+# Secrets -- keep .env.example, never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# PlatformIO build and dependency cache
+.pio/
+
+# VS Code / Cursor local IntelliSense (absolute paths)
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+build.log

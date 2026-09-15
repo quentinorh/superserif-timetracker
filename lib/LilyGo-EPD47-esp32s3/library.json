@@ -1,0 +1,25 @@
+{
+  "name": "LilyGo-EPD47",
+  "version": "1.1.0",
+  "description": "LilyGo T5 4.7 inch e-paper driver (trimmed vendor copy)",
+  "keywords": "lilygo,epaper",
+  "authors": [
+    {
+      "name": "Xinyuan-LilyGO",
+      "url": "https://github.com/Xinyuan-LilyGO"
+    },
+    {
+      "name": "LewisHe",
+      "url": "https://github.com/lewisxhe",
+      "maintainer": true
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Xinyuan-LilyGO/LilyGo-EPD47.git"
+  },
+  "homepage": "https://github.com/Xinyuan-LilyGO/LilyGo-EPD47",
+  "frameworks": ["arduino"],
+  "platforms": "esp32",
+  "headers": "epd_driver.h"
+}
