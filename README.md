@@ -1,4 +1,4 @@
-# Timetracker — 4.7" e-paper
+# Timetracker - 4.7" e-paper
 
 ![Lineup Timetracker dans son boîtier](assets/packshot.jpg)
 
