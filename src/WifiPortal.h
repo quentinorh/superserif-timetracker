@@ -23,6 +23,11 @@ public:
     void join(const String &ssid, const String &password);
     void forgetCurrentNetwork();
     void retryNow();
+    void connectSavedNow();
+    void setAutoJoin(bool enabled) { _autoJoin = enabled; }
+
+    bool hasVisibleSavedNetwork() const;
+    bool triedAllSaved() const { return _allSavedTried; }
 
     void startScan();
     bool scanning() const { return _scanning; }
@@ -42,6 +47,7 @@ private:
     bool probeInternet();
     void tryNextSavedNetwork();
     uint32_t retryDelay() const;
+    bool ssidInScan(const String &ssid) const;
 
     Store *_store = nullptr;
 
@@ -60,6 +66,8 @@ private:
     uint32_t _lastRetryMs = 0;
     uint8_t _retryRound = 0;
     uint32_t _lastInternetCheckMs = 0;
+    bool _autoJoin = true;
+    bool _allSavedTried = false;
 
     std::vector<WifiNetwork> _scan;
     bool _scanning = false;

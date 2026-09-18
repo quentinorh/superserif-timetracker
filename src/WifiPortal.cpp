@@ -98,7 +98,7 @@ void WifiPortal::loop()
                 ensureNtp();
                 return;
             }
-        } else {
+        } else if (_autoJoin) {
             tryNextSavedNetwork();
         }
     }
@@ -110,27 +110,58 @@ uint32_t WifiPortal::retryDelay() const
     return d > 40000UL ? 40000UL : d;
 }
 
+bool WifiPortal::ssidInScan(const String &ssid) const
+{
+    for (const WifiNetwork &entry : _scan) {
+        if (entry.ssid == ssid) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool WifiPortal::hasVisibleSavedNetwork() const
+{
+    uint8_t count = _store ? _store->networkCount() : 0;
+    for (uint8_t i = 0; i < count; i++) {
+        String ssid, password;
+        if (_store->network(i, ssid, password) && ssidInScan(ssid)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void WifiPortal::tryNextSavedNetwork()
 {
     uint8_t count = _store ? _store->networkCount() : 0;
     if (count == 0) {
+        _allSavedTried = true;
         if (_retryRound < 4) {
             _retryRound++;
         }
         return;
     }
 
-    if (_retryIndex >= count) {
-        _retryIndex = 0;
-        if (_retryRound < 4) {
-            _retryRound++;
+    while (_retryIndex < count) {
+        String ssid, password;
+        uint8_t index = _retryIndex++;
+        if (!_store->network(index, ssid, password)) {
+            continue;
         }
+        // A completed scan with results means missing SSIDs are really gone:
+        // skip them instead of sitting on "Connecting..." for 15 s each.
+        if (!_scan.empty() && !ssidInScan(ssid)) {
+            continue;
+        }
+        beginJoin(ssid, password);
+        return;
     }
 
-    String ssid, password;
-    if (_store->network(_retryIndex, ssid, password)) {
-        _retryIndex++;
-        beginJoin(ssid, password);
+    _allSavedTried = true;
+    _retryIndex = 0;
+    if (_retryRound < 4) {
+        _retryRound++;
     }
 }
 
@@ -138,9 +169,21 @@ void WifiPortal::retryNow()
 {
     _retryIndex = 0;
     _retryRound = 0;
+    _allSavedTried = false;
     _lastRetryMs = 0;
     _failReason = "";
     _changed = true;
+}
+
+void WifiPortal::connectSavedNow()
+{
+    _retryIndex = 0;
+    _retryRound = 0;
+    _allSavedTried = false;
+    _lastRetryMs = millis();
+    _failReason = "";
+    _changed = true;
+    tryNextSavedNetwork();
 }
 
 void WifiPortal::join(const String &ssid, const String &password)
@@ -174,8 +217,11 @@ void WifiPortal::pumpJoin()
 
         case Join::Pending:
             log_i("joining %s", _joinSsid.c_str());
+            // Drop any leftover scan buffers before STA connect + TLS.
+            WiFi.scanDelete();
             if (WiFi.status() == WL_CONNECTED) {
                 WiFi.disconnect(false, false);
+                delay(50);
             }
             WiFi.begin(_joinSsid.c_str(),
                        _joinPassword.length() ? _joinPassword.c_str() : nullptr);
@@ -188,6 +234,7 @@ void WifiPortal::pumpJoin()
             wl_status_t status = WiFi.status();
             if (status == WL_CONNECTED) {
                 _join = Join::Verifying;
+                _joinStartedMs = millis();
                 _changed = true;
                 break;
             }
@@ -210,12 +257,17 @@ void WifiPortal::pumpJoin()
         }
 
         case Join::Verifying:
+            // DHCP/DNS are not always ready on the same tick as WL_CONNECTED.
+            if (millis() - _joinStartedMs < 300) {
+                break;
+            }
             _internet = probeInternet();
             _lastInternetCheckMs = millis();
             if (_internet) {
                 _store->rememberNetwork(_joinSsid, _joinPassword);
                 _retryIndex = 0;
                 _retryRound = 0;
+                _allSavedTried = false;
                 _offlineSinceMs = 0;
                 _join = Join::Success;
                 _joinSettledMs = millis();
@@ -236,6 +288,10 @@ void WifiPortal::pumpJoin()
             if (millis() - _joinSettledMs > JOIN_FAILURE_LINGER_MS) {
                 _join = Join::Idle;
                 _lastRetryMs = millis();
+                uint8_t count = _store ? _store->networkCount() : 0;
+                if (_retryIndex >= count) {
+                    _allSavedTried = true;
+                }
                 _changed = true;
             }
             break;

@@ -39,6 +39,8 @@ constexpr uint32_t SPINNER_MS = 750UL;
 
 constexpr uint32_t STA_CONNECT_TIMEOUT_MS = 15UL * 1000UL;
 constexpr uint32_t INTERNET_RECHECK_MS = 10UL * 60UL * 1000UL;
+// Leave the splash even if the first API fetch hangs after Wi-Fi is up.
+constexpr uint32_t BOOT_LEAVE_MS = 20UL * 1000UL;
 
 constexpr uint32_t TOUCH_POLL_MS = 20UL;
 

@@ -176,10 +176,8 @@ void apiWorker(void *)
             requestRender(false);
         }
         if (jobs & JOB_REFRESH) {
-            bool ok = refreshData();
-            if (ok && !bootDone) {
-                bootDone = true;
-            }
+            refreshData();
+            bootDone = true;
             requestRender(false);
         }
     }
@@ -273,12 +271,19 @@ void scanAndShowWifi(bool switchedToWifi)
     requestRender(switchedToWifi);
 }
 
-void openWifiPicker(bool fromSettings)
+void openWifiPicker(bool fromSettings, bool rescan = true)
 {
     wifiFromSettings = fromSettings;
     ui.setPage(0);
     ui.setScreen(Screen::Wifi);
-    scanAndShowWifi(/*switchedToWifi=*/true);
+    if (rescan) {
+        scanAndShowWifi(/*switchedToWifi=*/true);
+    } else {
+        ui.setWifiScanning(false);
+        ui.setWifiNetworks(&net.networks());
+        ui.setNet(net.info());
+        ui.render(true);
+    }
 }
 
 void openKeyboard(const String &ssid)
@@ -505,22 +510,40 @@ void handleTouch()
 void followSetupState()
 {
     const bool onWifiUi = ui.screen() == Screen::Wifi || ui.screen() == Screen::Keyboard;
+    net.setAutoJoin(!onWifiUi);
 
     if (!onWifiUi && store.networkCount() == 0 && !net.online() && ui.screen() != Screen::Settings) {
         openWifiPicker(/*fromSettings=*/false);
     }
 
+    // Saved credentials exist but none came up (or they all failed): don't
+    // sit on the boot splash saying "Connexion au Wi-Fi..." forever.
+    if (ui.screen() == Screen::Boot && !net.online() &&
+        net.joinState() == WifiPortal::Join::Idle && net.triedAllSaved()) {
+        openWifiPicker(/*fromSettings=*/false);
+    }
+
     // Only leave the picker after a join that just succeeded — not because
     // the device was already online when the user opened it from Settings.
-    if (onWifiUi && net.joinState() == WifiPortal::Join::Success) {
-        if (!bootDone) {
-            wifiFromSettings = false;
-            ui.setScreen(Screen::Boot);
+    if (net.joinState() == WifiPortal::Join::Success) {
+        if (onWifiUi) {
+            if (!bootDone) {
+                wifiFromSettings = false;
+                ui.setScreen(Screen::Boot);
+                ui.setStatus(F("Chargement des projets..."), false);
+                requestRender(true);
+            } else {
+                leaveWifi();
+            }
+        } else if (ui.screen() == Screen::Boot && !bootDone) {
             ui.setStatus(F("Chargement des projets..."), false);
-            requestRender(true);
-        } else {
-            leaveWifi();
+            requestRender(false);
         }
+    }
+
+    if (ui.screen() == Screen::Boot && lastFetchAttemptMs > 0 &&
+        millis() - lastFetchAttemptMs > BOOT_LEAVE_MS) {
+        bootDone = true;
     }
 
     if (ui.screen() == Screen::Boot && bootDone) {
@@ -573,14 +596,16 @@ void setup()
 
     xTaskCreate(apiWorker, "api", 12288, nullptr, 1, &apiTaskHandle);
 
-    ui.setStatus(store.networkCount() > 0 ? F("Connexion au Wi-Fi...")
-                                          : F("Aucun réseau Wi-Fi enregistré"),
-                 false);
-    ui.setNet(net.info());
-    ui.render(false);
-
     if (store.networkCount() == 0) {
+        ui.setStatus(F("Aucun réseau Wi-Fi enregistré"), false);
+        ui.setNet(net.info());
+        ui.render(false);
         openWifiPicker(/*fromSettings=*/false);
+    } else {
+        ui.setStatus(F("Connexion au Wi-Fi..."), false);
+        ui.setNet(net.info());
+        ui.render(false);
+        net.connectSavedNow();
     }
 }
 
@@ -628,10 +653,13 @@ void loop()
         bool countPartial = renderCountPartial;
         renderCountPartial = true;
 
+        NetInfo info = net.info();
         if (ui.screen() != Screen::Boot) {
             updateStatusLines();
+        } else if (info.note.length() > 0) {
+            ui.setHint(info.note);
         }
-        ui.setNet(net.info());
+        ui.setNet(info);
         ui.setSavedNetworks(store.networkCount());
         ui.setWifiScanning(net.scanning());
         ui.setDataReady(lastFetchOkMs > 0);
